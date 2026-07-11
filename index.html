@@ -3,109 +3,364 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calcolatore Media Geografica Pesata</title>
-    <!-- Libreria per la mappa (Leaflet - l'equivalente JavaScript di Folium) -->
+    <title>Calcolatore Centro di Gravità Storico</title>
+    <!-- Mappe Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f7fb; color: #333; }
-        .container { max-width: 1100px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
-        .panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1; min-width: 350px; }
-        .map-panel { flex: 1.5; min-width: 400px; height: 600px; display: flex; flex-direction: column; }
-        #map { width: 100%; height: 100%; border-radius: 8px; border: 1px solid #ddd; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f8f9fa; font-size: 14px; }
-        input { width: 90%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-        button { padding: 10px 15px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-add { background: #e3f2fd; color: #0d47a1; margin-bottom: 15px; }
-        .btn-add:hover { background: #d0e8ff; }
-        .btn-calc { background: #2e7d32; color: white; width: 100%; font-size: 16px; }
-        .btn-calc:hover { background: #1b5e20; }
-        .btn-del { background: #ffebee; color: #c62828; padding: 4px 8px; }
-        .btn-del:hover { background: #ffcdd2; }
-        .stats { background: #f1f8e9; padding: 12px; border-radius: 6px; border-left: 4px solid #7cb342; margin-bottom: 15px; font-size: 14px; }
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #16a34a;
+            --success-hover: #15803d;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --bg: #f8fafc;
+            --panel-bg: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+        }
+
+        header {
+            background: linear-gradient(135deg, #1e3a8a, #2563eb);
+            color: white;
+            padding: 25px 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        header h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+        header p { margin: 5px 0 0 0; opacity: 0.9; font-size: 14px; }
+
+        .main-container {
+            margin: 30px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 968px) {
+            .main-container { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Tabella stili */
+        .table-wrapper { overflow-x: auto; margin-bottom: 20px; border-radius: 8px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+        th { background: #f1f5f9; padding: 12px; font-weight: 600; color: #475569; }
+        td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+
+        input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            box-sizing: border-box;
+            transition: all 0.2s;
+        }
+        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        .geo-cell { display: flex; gap: 4px; align-items: center; }
+
+        /* Bottoni */
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .btn-add { background-color: #eff6ff; color: var(--primary); font-weight: 600; margin-bottom: 15px; }
+        .btn-add:hover { background-color: #dbeafe; }
+        .btn-search { background-color: #f1f5f9; color: #475569; padding: 8px; }
+        .btn-search:hover { background-color: #e2e8f0; color: var(--text); }
+        .btn-del { background-color: #fef2f2; color: var(--danger); padding: 8px; }
+        .btn-del:hover { background-color: #fee2e2; }
+        .btn-calc { background-color: var(--success); color: white; width: 100%; padding: 14px; font-size: 16px; font-weight: 600; border-radius: 8px; margin-top: 10px; }
+        .btn-calc:hover { background-color: var(--success-hover); box-shadow: 0 4px 6px -1px rgba(22, 163, 74, 0.2); }
+
+        /* Mappa e Statistiche */
+        .sticky-right { position: sticky; top: 30px; display: flex; flex-direction: column; gap: 24px; height: calc(100vh - 150px); min-height: 500px; }
+        #map { width: 100%; flex-grow: 1; border-radius: 12px; border: 1px solid var(--border); z-index: 1; }
+        
+        .stats-card {
+            background: linear-gradient(to right, #f0fdf4, #dcfce7);
+            border-left: 5px solid var(--success);
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 5px; }
+        .stat-val { font-size: 18px; font-weight: 700; color: #166534; }
+
+        /* Stile per la lista dei suggerimenti automatici */
+        .geo-cell { position: relative; display: flex; gap: 4px; align-items: center; }
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-top: 2px;
+        }
+        .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .autocomplete-item:hover {
+            background-color: #f1f5f9;
+        }
+        .autocomplete-item:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
 
-<h2 style="text-align: center; margin-bottom: 30px;">🌍 Calcolatore Centro di Gravità Storico</h2>
+<header>
+    <h1>🌍 Center of Mass of Your Life</h1>
+    <p>Calculates the mean position of your life.</p>
+</header>
 
-<div class="container">
-    <!-- PANNELLO SINISTRO: INPUT DATI -->
+<div class="main-container">
+    <!-- PANEL DI SINISTRA: INPUT -->
     <div class="panel">
-        <h3>📋 I tuoi Soggiorni</h3>
-        <button class="btn-add" onclick="aggiungiRiga()">➕ Aggiungi riga</button>
+        <div class="panel-title">📋 Input the places you have lived in:</div>
         
-        <table id="tabella-soggiorni">
-            <thead>
-                <tr>
-                    <th>Città</th>
-                    <th>Lat</th>
-                    <th>Lon</th>
-                    <th>Inizio</th>
-                    <th>Fine</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Dati di esempio iniziali (i tuoi primi 3) -->
-                <tr>
-                    <td><input type="text" class="citta" value="Milano Piazza Napoli"></td>
-                    <td><input type="number" step="any" class="lat" value="45.452907"></td>
-                    <td><input type="number" step="any" class="lon" value="9.152802"></td>
-                    <td><input type="date" class="inizio" value="2001-08-03"></td>
-                    <td><input type="date" class="fine" value="2002-01-10"></td>
-                    <td><button class="btn-del" onclick="eliminaRiga(this)">✕</button></td>
-                </tr>
-                <tr>
-                    <td><input type="text" class="citta" value="Palermo Notarbartolo"></td>
-                    <td><input type="number" step="any" class="lat" value="38.133456"></td>
-                    <td><input type="number" step="any" class="lon" value="13.348152"></td>
-                    <td><input type="date" class="inizio" value="2002-01-11"></td>
-                    <td><input type="date" class="fine" value="2007-08-31"></td>
-                    <td><button class="btn-del" onclick="eliminaRiga(this)">✕</button></td>
-                </tr>
-            </tbody>
-        </table>
-        
-        <button class="btn-calc" onclick="calcolaTutto()">🌍 Calcola e Aggiorna Mappa</button>
+        <div class="table-wrapper">
+            <table id="tabella-soggiorni">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Address</th>
+                        <th style="width: 15%;">Latitude</th>
+                        <th style="width: 15%;">Longitude</th>
+                        <th style="width: 18%;">Start Date</th>
+                        <th style="width: 18%;">End Date</th>
+                        <th style="width: 4%;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Righe di esempio storiche basate sul tuo codice -->
+                    <tr>
+                        <td>
+                            <div class="geo-cell">
+                                <input type="text" class="citta" value="Milano Piazza Duomo">
+                                <button class="btn-search" title="Look up coordinates" onclick="cercaCoordinate(this)">🔍</button>
+                            </div>
+                        </td>
+                        <td><input type="number" step="any" class="lat" value="45.463910"></td>
+                        <td><input type="number" step="any" class="lon" value="9.190640"></td>
+                        <td><input type="date" class="inizio" value="2000-01-01"></td>
+                        <td><input type="date" class="fine" value="2001-01-01"></td>
+                        <td><button class="btn-del" onclick="eliminaRiga(this)">✕</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <button class="btn-add" onclick="aggiungiRiga()">➕ Add New</button>
+        <button class="btn-calc" onclick="calcolaTutto()">🌍 Generate Map</button>
     </div>
 
-    <!-- PANNELLO DESTRO: MAPPA -->
-    <div class="panel map-panel">
-        <div id="stats-box" class="stats" style="display:none;"></div>
+    <!-- PANEL DI DESTRA: MAPPA & OUTPUT (STICKY) -->
+    <div class="sticky-right">
+        <div id="stats-box" class="stats-card" style="display:none;">
+            <div class="stats-grid">
+                <div>⌛ Total Days:<br><span id="stat-giorni" class="stat-val">-</span></div>
+                <div>📍 Center of Mass:<br><span id="stat-coord" class="stat-val">-</span></div>
+            </div>
+        </div>
         <div id="map"></div>
     </div>
 </div>
 
 <script>
-    // Inizializza la mappa centrata sull'Italia
-    var map = L.map('map').setView([42.0, 12.5], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
 
+    // Inizializza mappa su Italia
+    var map = L.map('map').setView([42.0, 12.5], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     var markerGroup = L.layerGroup().addTo(map);
 
+    var markerAnteprima = null;
+    var ternaTimer = null; // Timer per il debounce (attesa fine digitazione)
+
+    // Modifichiamo la creazione della riga per ascoltare la tastiera
     function aggiungiRiga() {
         var tbody = document.querySelector("#tabella-soggiorni tbody");
         var tr = document.createElement("tr");
         tr.innerHTML = `
-            <td><input type="text" class="citta" placeholder="Es. Roma"></td>
-            <td><input type="number" step="any" class="lat" placeholder="41.89"></td>
-            <td><input type="number" step="any" class="lon" placeholder="12.49"></td>
-            <td><input type="date" class="inizio"></td>
-            <td><input type="date" class="fine"></td>
+            <td>
+                <div class="geo-cell">
+                    <input type="text" class="citta" placeholder="Es: Milano Piazza Duomo" oninput="gestisciInputInTempoReale(this)">
+                    <div class="autocomplete-list" style="display:none;"></div>
+                </div>
+            </td>
+            <td><input type="date" class="Start"></td>
+            <td><input type="date" class="End"></td>
             <td><button class="btn-del" onclick="eliminaRiga(this)">✕</button></td>
         `;
         tbody.appendChild(tr);
     }
 
-    function eliminaRiga(btn) {
-        btn.closest("tr").remove();
+    // Questa funzione viene chiamata ad ogni lettera che digiti
+    function gestisciInputInTempoReale(inputEl) {
+        var riga = inputEl.closest("tr");
+        var listaSuggerimenti = riga.querySelector(".autocomplete-list");
+        var testo = inputEl.value;
+
+        // Cancella il timer precedente se l'utente sta ancora digitando velocemente
+        clearTimeout(ternaTimer);
+
+        if (testo.trim().length < 3) {
+            listaSuggerimenti.innerHTML = "";
+            listaSuggerimenti.style.display = "none";
+            return;
+        }
+
+        // Aspetta 500 millisecondi di silenzio sulla tastiera prima di interrogare il server
+        ternaTimer = setTimeout(async function() {
+            try {
+                var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(testo)}&limit=4`;
+                var response = await fetch(url, { 
+                    headers: { 
+                        'Accept-Language': 'it',
+                        'User-Agent': 'CalcolatoreCentroGravitaStorico/1.0'
+                    } 
+                });
+                
+                if (!response.ok) return;
+                var data = await response.json();
+
+                listaSuggerimenti.innerHTML = "";
+                
+                if (data && data.length > 0) {
+                    listaSuggerimenti.style.display = "block";
+                    data.forEach(function(item) {
+                        var div = document.createElement("div");
+                        div.className = "autocomplete-item";
+                        div.innerText = item.display_name;
+                        
+                        // Quando l'utente clicca sul suggerimento desiderato
+                        div.onclick = function() {
+                            inputEl.value = item.display_name;
+                            riga.querySelector(".lat").value = parseFloat(item.lat).toFixed(6);
+                            riga.querySelector(".lon").value = parseFloat(item.lon).toFixed(6);
+                            
+                            listaSuggerimenti.style.display = "none";
+                            mostraAnteprimaMappa(parseFloat(item.lat), parseFloat(item.lon), item.display_name);
+                        };
+                        listaSuggerimenti.appendChild(div);
+                    });
+                } else {
+                    listaSuggerimenti.style.display = "none";
+                }
+            } catch (error) {
+                console.error("Errore autocompletamento:", error);
+            }
+        }, 500);
     }
 
+    // Chiude i menu dei suggerimenti se clicchi in un punto qualsiasi fuori dalla tabella
+    document.addEventListener("click", function(e) {
+        if (!e.target.classList.contains("citta")) {
+            document.querySelectorAll(".autocomplete-list").forEach(function(list) {
+                list.style.display = "none";
+            });
+        }
+    });
+
+    function mostraAnteprimaMappa(lat, lon, indirizzo) {
+        if (markerAnteprima) { map.removeLayer(markerAnteprima); }
+        markerAnteprima = L.circleMarker([lat, lon], {
+            radius: 10,
+            fillColor: "#f97316",
+            color: "#ffffff",
+            weight: 2,
+            fillOpacity: 0.9
+        }).addTo(map);
+        markerAnteprima.bindPopup(`<b>📍 Selected:</b><br>${indirizzo}`).openPopup();
+        map.setView([lat, lon], 14);
+    }
+
+    // FUNZIONE DI RICERCA AUTOMATICA COORDINATE (GEOPROCESSING)
+    async function cercaCoordinate(btn) {
+        var riga = btn.closest("tr");
+        var indirizzo = riga.querySelector(".citta").value;
+        
+        if (!indirizzo.trim()) {
+            alert("Write an address or a city in the text field first!");
+            return;
+        }
+
+        btn.innerText = "⏳";
+        btn.disabled = true;
+
+        try {
+            // Chiamata API gratuita a OpenStreetMap Nominatim
+            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(indirizzo)}&limit=1`;
+            var response = await fetch(url, { headers: { 'Accept-Language': 'it' } });
+            var data = await response.json();
+
+            if (data && data.length > 0) {
+                riga.querySelector(".lat").value = parseFloat(data[0].lat).toFixed(6);
+                riga.querySelector(".lon").value = parseFloat(data[0].lon).toFixed(6);
+                btn.innerText = "✅";
+                setTimeout(() => btn.innerText = "🔍", 1500);
+
+                mostraAnteprimaMappa(parseFloat(data[0].lat), parseFloat(data[0].lon), indirizzo);
+            } else {
+                alert("No place found for this address. Try to be more specific or enter the coordinates manually.");
+                btn.innerText = "🔍";
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error while searching for coordinates. Check your connection.");
+            btn.innerText = "🔍";
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // CALCOLO DELLA MEDIA GEOGRAFICA PESATA
     function calcolaTutto() {
         markerGroup.clearLayers();
         
@@ -115,78 +370,81 @@
         var inizioEl = document.querySelectorAll(".inizio");
         var fineEl = document.querySelectorAll(".fine");
         
-        var pesi = [];
+        var datiValidi = [];
         var totaleGiorni = 0;
         
         for (var i = 0; i < latEl.length; i++) {
             var lat = parseFloat(latEl[i].value);
             var lon = parseFloat(lonEl[i].value);
-            var citta = cittaEl[i].value || "Soggiorno " + (i+1);
+            var nomePosto = cittaEl[i].value || `Luogo ${i+1}`;
             
             if (isNaN(lat) || isNaN(lon) || !inizioEl[i].value || !fineEl[i].value) continue;
             
             var d1 = new Date(inizioEl[i].value);
             var d2 = new Date(fineEl[i].value);
             
-            // Calcolo differenza in giorni
             var diffTime = d2.getTime() - d1.getTime();
             var giorni = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
             
             if (giorni > 0) {
-                pesi.push({lat: lat, lon: lon, giorni: giorni, citta: citta});
+                datiValidi.push({lat: lat, lon: lon, giorni: giorni, nome: nomePosto});
                 totaleGiorni += giorni;
             }
         }
         
-        if (pesi.length === 0) {
-            alert("Inserisci almeno un soggiorno valido con date corrette!");
+        if (datiValidi.length === 0) {
+            alert("Enter and calculate at least one row with complete data and dates!");
             return;
         }
         
-        // Calcolo media pesata
+        // Calcolo baricentro pesato
         var latMedia = 0;
         var lonMedia = 0;
-        
-        // Raggruppiamo per posizione per fare marker blu unici cumulativi
         var posizioniUniche = {};
         
-        pesi.forEach(function(p) {
+        datiValidi.forEach(function(p) {
             latMedia += p.lat * p.giorni;
             lonMedia += p.lon * p.giorni;
             
-            var key = p.lat + "," + p.lon;
-            posizioniUniche[key] = (posizioniUniche[key] || 0) + p.giorni;
+            var chiaveCoordinata = p.lat.toFixed(5) + "," + p.lon.toFixed(5);
+            if (!posizioniUniche[chiaveCoordinata]) {
+                posizioniUniche[chiaveCoordinata] = {giorni: 0, nomi: []};
+            }
+            posizioniUniche[chiaveCoordinata].giorni += p.giorni;
+            if(!posizioniUniche[chiaveCoordinata].nomi.includes(p.nome)) {
+                posizioniUniche[chiaveCoordinata].nomi.push(p.nome);
+            }
         });
         
         latMedia = latMedia / totaleGiorni;
         lonMedia = lonMedia / totaleGiorni;
         
-        // Mostra le statistiche testuali
-        var statsBox = document.getElementById("stats-box");
-        statsBox.style.display = "block";
-        statsBox.innerHTML = `<strong>Risultati:</strong><br>⏱️ Totale giorni analizzati: <strong>${totaleGiorni}</strong><br>📍 Centro di gravità storico: <strong>${latMedia.toFixed(5)}, ${lonMedia.toFixed(5)}</strong>`;
+        // Aggiorna la scheda delle statistiche in alto a destra
+        document.getElementById("stats-box").style.display = "block";
+        document.getElementById("stat-giorni").innerText = totaleGiorni + " gg";
+        document.getElementById("stat-coord").innerText = `${latMedia.toFixed(4)}, ${lonMedia.toFixed(4)}`;
         
-        // Aggiungi marker blu dei soggiorni
-        for (var key in posizioniUniche) {
-            var coords = key.split(",").map(Number);
+        // Disegna i marker blu (Soggiorni storici)
+        for (var chiave in posizioniUniche) {
+            var coords = chiave.split(",").map(Number);
             L.marker(coords).addTo(markerGroup)
-                .bindPopup(`<b>Soggiorno</b><br>Tempo totale speso qui: ${posizioniUniche[key]} giorni`);
+                .bindPopup(`<b>🏠 ${posizioniUniche[chiave].nomi.join(" / ")}</b><br>Stayed here for a total of: <b>${posizioniUniche[chiave].giorni} days</b>`);
         }
         
-        // Aggiungi marker rosso per la media pesata (usiamo un cerchio rosso vistoso come "stella")
+        // Disegna il marker rosso (Media pesata)
         L.circleMarker([latMedia, lonMedia], {
-            radius: 12,
-            fillColor: "#ff1744",
-            color: "#fff",
+            radius: 14,
+            fillColor: "#ef4444",
+            color: "#ffffff",
             weight: 3,
-            fillOpacity: 0.9
-        }).addTo(markerGroup).bindPopup("<b>📍 Centro di Gravità Storico (Media Pesata)</b>").openPopup();
+            fillOpacity: 1
+        }).addTo(markerGroup).bindPopup(`<b>📍 WEIGHTED CENTER OF MASS</b><br>The perfect weighted coordinate based on the duration of all your movements.`).openPopup();
         
-        // Sposta la mappa sul risultato
+        // Ingrandisci la mappa per contenere i dati
         map.setView([latMedia, lonMedia], 6);
     }
 
-    // Esegui il calcolo automatico all'avvio coi dati di esempio
+    // Fai partire il calcolo con i dati demo pronti all'avvio
     window.onload = calcolaTutto;
 </script>
 
