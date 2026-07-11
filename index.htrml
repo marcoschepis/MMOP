@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calcolatore Media Geografica Pesata</title>
+    <!-- Libreria per la mappa (Leaflet - l'equivalente JavaScript di Folium) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f7fb; color: #333; }
+        .container { max-width: 1100px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
+        .panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1; min-width: 350px; }
+        .map-panel { flex: 1.5; min-width: 400px; height: 600px; display: flex; flex-direction: column; }
+        #map { width: 100%; height: 100%; border-radius: 8px; border: 1px solid #ddd; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-size: 14px; }
+        input { width: 90%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+        button { padding: 10px 15px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-add { background: #e3f2fd; color: #0d47a1; margin-bottom: 15px; }
+        .btn-add:hover { background: #d0e8ff; }
+        .btn-calc { background: #2e7d32; color: white; width: 100%; font-size: 16px; }
+        .btn-calc:hover { background: #1b5e20; }
+        .btn-del { background: #ffebee; color: #c62828; padding: 4px 8px; }
+        .btn-del:hover { background: #ffcdd2; }
+        .stats { background: #f1f8e9; padding: 12px; border-radius: 6px; border-left: 4px solid #7cb342; margin-bottom: 15px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<h2 style="text-align: center; margin-bottom: 30px;">🌍 Calcolatore Centro di Gravità Storico</h2>
+
+<div class="container">
+    <!-- PANNELLO SINISTRO: INPUT DATI -->
+    <div class="panel">
+        <h3>📋 I tuoi Soggiorni</h3>
+        <button class="btn-add" onclick="aggiungiRiga()">➕ Aggiungi riga</button>
+        
+        <table id="tabella-soggiorni">
+            <thead>
+                <tr>
+                    <th>Città</th>
+                    <th>Lat</th>
+                    <th>Lon</th>
+                    <th>Inizio</th>
+                    <th>Fine</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Dati di esempio iniziali (i tuoi primi 3) -->
+                <tr>
+                    <td><input type="text" class="citta" value="Milano Piazza Napoli"></td>
+                    <td><input type="number" step="any" class="lat" value="45.452907"></td>
+                    <td><input type="number" step="any" class="lon" value="9.152802"></td>
+                    <td><input type="date" class="inizio" value="2001-08-03"></td>
+                    <td><input type="date" class="fine" value="2002-01-10"></td>
+                    <td><button class="btn-del" onclick="eliminaRiga(this)">✕</button></td>
+                </tr>
+                <tr>
+                    <td><input type="text" class="citta" value="Palermo Notarbartolo"></td>
+                    <td><input type="number" step="any" class="lat" value="38.133456"></td>
+                    <td><input type="number" step="any" class="lon" value="13.348152"></td>
+                    <td><input type="date" class="inizio" value="2002-01-11"></td>
+                    <td><input type="date" class="fine" value="2007-08-31"></td>
+                    <td><button class="btn-del" onclick="eliminaRiga(this)">✕</button></td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <button class="btn-calc" onclick="calcolaTutto()">🌍 Calcola e Aggiorna Mappa</button>
+    </div>
+
+    <!-- PANNELLO DESTRO: MAPPA -->
+    <div class="panel map-panel">
+        <div id="stats-box" class="stats" style="display:none;"></div>
+        <div id="map"></div>
+    </div>
+</div>
+
+<script>
+    // Inizializza la mappa centrata sull'Italia
+    var map = L.map('map').setView([42.0, 12.5], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    var markerGroup = L.layerGroup().addTo(map);
+
+    function aggiungiRiga() {
+        var tbody = document.querySelector("#tabella-soggiorni tbody");
+        var tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td><input type="text" class="citta" placeholder="Es. Roma"></td>
+            <td><input type="number" step="any" class="lat" placeholder="41.89"></td>
+            <td><input type="number" step="any" class="lon" placeholder="12.49"></td>
+            <td><input type="date" class="inizio"></td>
+            <td><input type="date" class="fine"></td>
+            <td><button class="btn-del" onclick="eliminaRiga(this)">✕</button></td>
+        `;
+        tbody.appendChild(tr);
+    }
+
+    function eliminaRiga(btn) {
+        btn.closest("tr").remove();
+    }
+
+    function calcolaTutto() {
+        markerGroup.clearLayers();
+        
+        var cittaEl = document.querySelectorAll(".citta");
+        var latEl = document.querySelectorAll(".lat");
+        var lonEl = document.querySelectorAll(".lon");
+        var inizioEl = document.querySelectorAll(".inizio");
+        var fineEl = document.querySelectorAll(".fine");
+        
+        var pesi = [];
+        var totaleGiorni = 0;
+        
+        for (var i = 0; i < latEl.length; i++) {
+            var lat = parseFloat(latEl[i].value);
+            var lon = parseFloat(lonEl[i].value);
+            var citta = cittaEl[i].value || "Soggiorno " + (i+1);
+            
+            if (isNaN(lat) || isNaN(lon) || !inizioEl[i].value || !fineEl[i].value) continue;
+            
+            var d1 = new Date(inizioEl[i].value);
+            var d2 = new Date(fineEl[i].value);
+            
+            // Calcolo differenza in giorni
+            var diffTime = d2.getTime() - d1.getTime();
+            var giorni = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            if (giorni > 0) {
+                pesi.push({lat: lat, lon: lon, giorni: giorni, citta: citta});
+                totaleGiorni += giorni;
+            }
+        }
+        
+        if (pesi.length === 0) {
+            alert("Inserisci almeno un soggiorno valido con date corrette!");
+            return;
+        }
+        
+        // Calcolo media pesata
+        var latMedia = 0;
+        var lonMedia = 0;
+        
+        // Raggruppiamo per posizione per fare marker blu unici cumulativi
+        var posizioniUniche = {};
+        
+        pesi.forEach(function(p) {
+            latMedia += p.lat * p.giorni;
+            lonMedia += p.lon * p.giorni;
+            
+            var key = p.lat + "," + p.lon;
+            posizioniUniche[key] = (posizioniUniche[key] || 0) + p.giorni;
+        });
+        
+        latMedia = latMedia / totaleGiorni;
+        lonMedia = lonMedia / totaleGiorni;
+        
+        // Mostra le statistiche testuali
+        var statsBox = document.getElementById("stats-box");
+        statsBox.style.display = "block";
+        statsBox.innerHTML = `<strong>Risultati:</strong><br>⏱️ Totale giorni analizzati: <strong>${totaleGiorni}</strong><br>📍 Centro di gravità storico: <strong>${latMedia.toFixed(5)}, ${lonMedia.toFixed(5)}</strong>`;
+        
+        // Aggiungi marker blu dei soggiorni
+        for (var key in posizioniUniche) {
+            var coords = key.split(",").map(Number);
+            L.marker(coords).addTo(markerGroup)
+                .bindPopup(`<b>Soggiorno</b><br>Tempo totale speso qui: ${posizioniUniche[key]} giorni`);
+        }
+        
+        // Aggiungi marker rosso per la media pesata (usiamo un cerchio rosso vistoso come "stella")
+        L.circleMarker([latMedia, lonMedia], {
+            radius: 12,
+            fillColor: "#ff1744",
+            color: "#fff",
+            weight: 3,
+            fillOpacity: 0.9
+        }).addTo(markerGroup).bindPopup("<b>📍 Centro di Gravità Storico (Media Pesata)</b>").openPopup();
+        
+        // Sposta la mappa sul risultato
+        map.setView([latMedia, lonMedia], 6);
+    }
+
+    // Esegui il calcolo automatico all'avvio coi dati di esempio
+    window.onload = calcolaTutto;
+</script>
+
+</body>
+</html>
