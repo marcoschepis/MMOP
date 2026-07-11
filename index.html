@@ -87,7 +87,31 @@
         }
         input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
 
-        .geo-cell { display: flex; gap: 4px; align-items: center; }
+/* Stile aggiornato per far fluttuare la lista sopra la tabella */
+        .geo-cell { position: relative; display: flex; gap: 4px; align-items: center; }
+        .autocomplete-list {
+            position: fixed; /* FIX: Ora fluttua sopra ogni contenitore con overflow */
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999; /* Super prioritario su mappe e tabelle */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+            margin-top: 4px;
+            box-sizing: border-box;
+        }
+        .autocomplete-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid #f1f5f9;
+            color: var(--text);
+        }
+        .autocomplete-item:hover {
+            background-color: #f1f5f9;
+        }
+        .autocomplete-item:last-child { border-bottom: none; }
 
         /* Bottoni */
         button {
@@ -125,33 +149,6 @@
         }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 5px; }
         .stat-val { font-size: 18px; font-weight: 700; color: #166534; }
-
-        /* Stile per la lista dei suggerimenti automatici */
-        .geo-cell { position: relative; display: flex; gap: 4px; align-items: center; }
-        .autocomplete-list {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            margin-top: 2px;
-        }
-        .autocomplete-item {
-            padding: 8px 12px;
-            cursor: pointer;
-            font-size: 13px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .autocomplete-item:hover {
-            background-color: #f1f5f9;
-        }
-        .autocomplete-item:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
@@ -179,12 +176,12 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Righe di esempio storiche basate sul tuo codice -->
                     <tr>
                         <td>
                             <div class="geo-cell">
-                                <input type="text" class="citta" value="Milano Piazza Duomo">
-                                <button class="btn-search" title="Look up coordinates" onclick="cercaCoordinate(this)">🔍</button>
+                                <!-- FIX: Aggiunto oninput per la prima riga di default -->
+                                <input type="text" class="citta" value="Milano Piazza Duomo" oninput="gestisciInputInTempoReale(this)">
+                                <div class="autocomplete-list" style="display:none;"></div>
                             </div>
                         </td>
                         <td><input type="number" step="any" class="lat" value="45.463910"></td>
@@ -214,40 +211,39 @@
 </div>
 
 <script>
-
     // Inizializza mappa su Italia
     var map = L.map('map').setView([42.0, 12.5], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     var markerGroup = L.layerGroup().addTo(map);
 
     var markerAnteprima = null;
-    var ternaTimer = null; // Timer per il debounce (attesa fine digitazione)
+    var ternaTimer = null; 
 
-    // Modifichiamo la creazione della riga per ascoltare la tastiera
+    // FIX: Ripristinate le colonne Latitudine e Longitudine mancanti nella nuova riga
     function aggiungiRiga() {
         var tbody = document.querySelector("#tabella-soggiorni tbody");
         var tr = document.createElement("tr");
         tr.innerHTML = `
             <td>
                 <div class="geo-cell">
-                    <input type="text" class="citta" placeholder="Es: Milano Piazza Duomo" oninput="gestisciInputInTempoReale(this)">
+                    <input type="text" class="citta" placeholder="Es: Roma Piazza Navona" oninput="gestisciInputInTempoReale(this)">
                     <div class="autocomplete-list" style="display:none;"></div>
                 </div>
             </td>
-            <td><input type="date" class="Start"></td>
-            <td><input type="date" class="End"></td>
+            <td><input type="number" step="any" class="lat" placeholder="Latitude..."></td>
+            <td><input type="number" step="any" class="lon" placeholder="Longitude..."></td>
+            <td><input type="date" class="inizio"></td>
+            <td><input type="date" class="fine"></td>
             <td><button class="btn-del" onclick="eliminaRiga(this)">✕</button></td>
         `;
         tbody.appendChild(tr);
     }
 
-    // Questa funzione viene chiamata ad ogni lettera che digiti
     function gestisciInputInTempoReale(inputEl) {
         var riga = inputEl.closest("tr");
         var listaSuggerimenti = riga.querySelector(".autocomplete-list");
         var testo = inputEl.value;
 
-        // Cancella il timer precedente se l'utente sta ancora digitando velocemente
         clearTimeout(ternaTimer);
 
         if (testo.trim().length < 3) {
@@ -256,7 +252,6 @@
             return;
         }
 
-        // Aspetta 500 millisecondi di silenzio sulla tastiera prima di interrogare il server
         ternaTimer = setTimeout(async function() {
             try {
                 var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(testo)}&limit=4`;
@@ -279,7 +274,6 @@
                         div.className = "autocomplete-item";
                         div.innerText = item.display_name;
                         
-                        // Quando l'utente clicca sul suggerimento desiderato
                         div.onclick = function() {
                             inputEl.value = item.display_name;
                             riga.querySelector(".lat").value = parseFloat(item.lat).toFixed(6);
@@ -299,7 +293,7 @@
         }, 500);
     }
 
-    // Chiude i menu dei suggerimenti se clicchi in un punto qualsiasi fuori dalla tabella
+    // Chiude i menu dei suggerimenti se clicchi fuori
     document.addEventListener("click", function(e) {
         if (!e.target.classList.contains("citta")) {
             document.querySelectorAll(".autocomplete-list").forEach(function(list) {
@@ -321,46 +315,10 @@
         map.setView([lat, lon], 14);
     }
 
-    // FUNZIONE DI RICERCA AUTOMATICA COORDINATE (GEOPROCESSING)
-    async function cercaCoordinate(btn) {
-        var riga = btn.closest("tr");
-        var indirizzo = riga.querySelector(".citta").value;
-        
-        if (!indirizzo.trim()) {
-            alert("Write an address or a city in the text field first!");
-            return;
-        }
-
-        btn.innerText = "⏳";
-        btn.disabled = true;
-
-        try {
-            // Chiamata API gratuita a OpenStreetMap Nominatim
-            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(indirizzo)}&limit=1`;
-            var response = await fetch(url, { headers: { 'Accept-Language': 'it' } });
-            var data = await response.json();
-
-            if (data && data.length > 0) {
-                riga.querySelector(".lat").value = parseFloat(data[0].lat).toFixed(6);
-                riga.querySelector(".lon").value = parseFloat(data[0].lon).toFixed(6);
-                btn.innerText = "✅";
-                setTimeout(() => btn.innerText = "🔍", 1500);
-
-                mostraAnteprimaMappa(parseFloat(data[0].lat), parseFloat(data[0].lon), indirizzo);
-            } else {
-                alert("No place found for this address. Try to be more specific or enter the coordinates manually.");
-                btn.innerText = "🔍";
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Error while searching for coordinates. Check your connection.");
-            btn.innerText = "🔍";
-        } finally {
-            btn.disabled = false;
-        }
+    function eliminaRiga(btn) { 
+        btn.closest("tr").remove(); 
     }
 
-    // CALCOLO DELLA MEDIA GEOGRAFICA PESATA
     function calcolaTutto() {
         markerGroup.clearLayers();
         
@@ -397,7 +355,6 @@
             return;
         }
         
-        // Calcolo baricentro pesato
         var latMedia = 0;
         var lonMedia = 0;
         var posizioniUniche = {};
@@ -419,19 +376,16 @@
         latMedia = latMedia / totaleGiorni;
         lonMedia = lonMedia / totaleGiorni;
         
-        // Aggiorna la scheda delle statistiche in alto a destra
         document.getElementById("stats-box").style.display = "block";
         document.getElementById("stat-giorni").innerText = totaleGiorni + " gg";
         document.getElementById("stat-coord").innerText = `${latMedia.toFixed(4)}, ${lonMedia.toFixed(4)}`;
         
-        // Disegna i marker blu (Soggiorni storici)
         for (var chiave in posizioniUniche) {
             var coords = chiave.split(",").map(Number);
             L.marker(coords).addTo(markerGroup)
                 .bindPopup(`<b>🏠 ${posizioniUniche[chiave].nomi.join(" / ")}</b><br>Stayed here for a total of: <b>${posizioniUniche[chiave].giorni} days</b>`);
         }
         
-        // Disegna il marker rosso (Media pesata)
         L.circleMarker([latMedia, lonMedia], {
             radius: 14,
             fillColor: "#ef4444",
@@ -440,11 +394,9 @@
             fillOpacity: 1
         }).addTo(markerGroup).bindPopup(`<b>📍 WEIGHTED CENTER OF MASS</b><br>The perfect weighted coordinate based on the duration of all your movements.`).openPopup();
         
-        // Ingrandisci la mappa per contenere i dati
         map.setView([latMedia, lonMedia], 6);
     }
 
-    // Fai partire il calcolo con i dati demo pronti all'avvio
     window.onload = calcolaTutto;
 </script>
 
